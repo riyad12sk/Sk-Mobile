@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SK Mobile - Admin Panel</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-gray-100 p-4">
+
+    <div class="max-w-md mx-auto bg-white rounded-xl shadow-lg overflow-hidden p-6 mt-4">
+        <h1 class="text-2xl font-bold text-center text-blue-600 mb-6">SK Mobile কিস্তি সিস্টেম</h1>
+        
+        <!-- নতুন কাস্টমার ও ফোন এন্ট্রি ফর্ম -->
+        <div class="space-y-4 mb-6 bg-blue-50 p-4 rounded-lg">
+            <h2 class="font-bold text-blue-800 text-sm">নতুন ডিভাইস ও কিস্তি এন্ট্রি</h2>
+            <div>
+                <label class="block text-gray-700 text-xs font-bold mb-1">গ্রাহকের নাম</label>
+                <input type="text" id="custName" placeholder="গ্রাহকের নাম" class="w-full p-2 border rounded text-sm">
+            </div>
+            <div>
+                <label class="block text-gray-700 text-xs font-bold mb-1">মোবাইল নম্বর</label>
+                <input type="text" id="custPhone" placeholder="ফোন নম্বর" class="w-full p-2 border rounded text-sm">
+            </div>
+            <div>
+                <label class="block text-gray-700 text-xs font-bold mb-1">ফোনের মডেল</label>
+                <input type="text" id="phoneModel" placeholder="যেমন: Samsung A14" class="w-full p-2 border rounded text-sm">
+            </div>
+            <div>
+                <label class="block text-gray-700 text-xs font-bold mb-1">IMEI নম্বর (১৫ ডিজিট)</label>
+                <input type="text" id="phoneImei" placeholder="IMEI নম্বর" class="w-full p-2 border rounded text-sm">
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+                <div>
+                    <label class="block text-gray-700 text-xs font-bold mb-1">বিক্রয়মূল্য (টাকা)</label>
+                    <input type="number" id="salePrice" placeholder="মোট দাম" class="w-full p-2 border rounded text-sm">
+                </div>
+                <div>
+                    <label class="block text-gray-700 text-xs font-bold mb-1">ডাউনপেমেন্ট / জমা</label>
+                    <input type="number" id="downPayment" placeholder="প্রথমে জমা" class="w-full p-2 border rounded text-sm">
+                </div>
+            </div>
+
+            <button onclick="addCustomerAndPhone()" class="w-full bg-blue-600 hover:bg-blue-700 text-white p-2.5 rounded-lg font-bold text-sm">
+                তথ্য সেভ করুন
+            </button>
+        </div>
+
+        <div id="statusMsg" class="mb-4 text-center text-xs font-semibold"></div>
+
+        <hr class="my-6">
+
+        <!-- কাস্টমার ও ডিভাইস লিস্ট সেকশন -->
+        <h2 class="text-xl font-bold text-gray-800 mb-4">সকল ডিভাইস ও কিস্তি স্ট্যাটাস</h2>
+        <div id="deviceList" class="space-y-4">
+            <p class="text-gray-500 text-sm text-center">লোড হচ্ছে...</p>
+        </div>
+    </div>
+
+    <!-- পেমেন্ট নেওয়ার জন্য পপআপ সেকশন -->
+    <div id="paymentModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex justify-center items-center p-4 z-50">
+        <div class="bg-white p-6 rounded-xl max-w-sm w-full space-y-4">
+            <h3 class="font-bold text-lg text-gray-800">কিস্তির টাকা জমা নিন</h3>
+            <p id="payPhoneInfo" class="text-xs text-gray-600"></p>
+            <input type="hidden" id="payPhoneId">
+            <div>
+                <label class="block text-gray-700 text-xs font-bold mb-1">জমার পরিমাণ (টাকা)</label>
+                <input type="number" id="payAmount" placeholder="টাকার পরিমাণ" class="w-full p-2 border rounded text-sm">
+            </div>
+            <div class="flex space-x-2">
+                <button onclick="submitPayment()" class="flex-1 bg-green-600 text-white p-2 rounded font-bold text-sm">জমা কনফার্ম করুন</button>
+                <button onclick="closePaymentModal()" class="flex-1 bg-gray-400 text-white p-2 rounded font-bold text-sm">বাতিল</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const SUPABASE_URL = 'https://rufdrzdisnzrmgkojdln.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1ZmRyemRpc256cm1na29qZGxuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM4OTcyNTAsImV4cCI6MjEwOTQ3MzI1MH0.WZpV9X4wBMTM9oBcB6wxSmbkXrWZ2t63l3wIC6s_cAo';
+
+        const { createClient } = supabase;
+        const _supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        window.onload = function() {
+            fetchDevices();
+        }
+
+        async function addCustomerAndPhone() {
+            const name = document.getElementById('custName').value;
+            const phone = document.getElementById('custPhone').value;
+            const model = document.getElementById('phoneModel').value;
+            const imei = document.getElementById('phoneImei').value;
+            const price = parseFloat(document.getElementById('salePrice').value) || 0;
+            const paid = parseFloat(document.getElementById('downPayment').value) || 0;
+            const msg = document.getElementById('statusMsg');
+
+            if(!name || !imei || !phone || !price) {
+                msg.innerText = "দয়া করে প্রয়োজনীয় তথ্যগুলো পূরণ করুন!";
+                msg.className = "mb-4 text-center text-xs font-semibold text-red-500";
+                return;
+            }
+
+            msg.innerText = "সেভ হচ্ছে...";
+            msg.className = "mb-4 text-center text-xs font-semibold text-blue-500";
+
+            // ১. কাস্টমার সেভ
+            const { data: custData, error: custError } = await _supabase
+                .from('customers')
+                .insert([{ name: name, phone: phone }])
+                .select();
+
+            if (custError) {
+                msg.innerText = "ত্রুটি: " + custError.message;
+                msg.className = "mb-4 text-center text-xs font-semibold text-red-500";
+                return;
+            }
+
+            const customerId = custData[0].id;
+
+            // ২. ফোন সেভ
+            const { data: phoneData, error: phoneError } = await _supabase
+                .from('phones')
+                .insert([{ 
+                    customer_id: customerId, 
+                    brand: "General", 
+                    model: model, 
+                    imei: imei, 
+                    sale_price: price,
+                    device_status: 'active'
+                }])
+                .select();
+
+            if (phoneError) {
+                msg.innerText = "IMEI সেভ করতে সমস্যা হয়েছে (IMEI ইউনিক হতে হবে)!";
+                msg.className = "mb-4 text-center text-xs font-semibold text-red-500";
+                return;
+            }
+
+            const phoneId = phoneData[0].id;
+
+            // ৩. ডাউনপেমেন্ট ট্রানজেকশনে এন্ট্রি করা (যদি থাকে)
+            if(paid > 0) {
+                await _supabase.from('transactions').insert([{
+                    phone_id: phoneId,
+                    amount: paid,
+                    payment_date: new Date().toISOString()
+                }]);
+            }
+
+            msg.innerText = "সফলভাবে কাস্টমার ও কিস্তির তথ্য সেভ হয়েছে!";
+            msg.className = "mb-4 text-center text-xs font-semibold text-green-600";
+            
+            // ফর্ম ক্লিয়ার
+            document.getElementById('custName').value = '';
+            document.getElementById('custPhone').value = '';
+            document.getElementById('phoneModel').value = '';
+            document.getElementById('phoneImei').value = '';
+            document.getElementById('salePrice').value = '';
+            document.getElementById('downPayment').value = '';
+
+            fetchDevices();
+        }
+
+        async function fetchDevices() {
+            const listContainer = document.getElementById('deviceList');
+            
+            // আলাদাভাবে ডেটা ফেচ করা যাতে কোনো রিলেশন বা এমবেড এরর না আসে
+            const { data: phonesData, error: phoneErr } = await _supabase.from('phones').select('*').order('id', { ascending: false });
+            const { data: custData, error: custErr } = await _supabase.from('customers').select('*');
+            const { data: transData, error: transErr } = await _supabase.from('transactions').select('*');
+
+            if (phoneErr || custErr) {
+                listContainer.innerHTML = `<p class="text-red-500 text-xs p-3 bg-red-50 rounded border border-red-200"><b>সিস্টেম এরর:</b> ${phoneErr ? phoneErr.message : custErr.message}</p>`;
+                return;
+            }
+
+            if (!phonesData || phonesData.length === 0) {
+                listContainer.innerHTML = `<p class="text-gray-500 text-sm text-center">কোনো রেকর্ড নেই</p>`;
+                return;
+            }
+
+            // কাস্টমার আইডি ম্যাপ তৈরি
+            const custMap = {};
+            if (custData) {
+                custData.forEach(c => { custMap[c.id] = c; });
+            }
+
+            // ট্রানজেকশন বা জমার হিসাব ম্যাপ তৈরি
+            const transMap = {};
+            if (transData) {
+                transData.forEach(t => {
+                    if (!transMap[t.phone_id]) transMap[t.phone_id] = 0;
+                    transMap[t.phone_id] += Number(t.amount);
+                });
+            }
+
+            let html = '';
+            phonesData.forEach(item => {
+                const customer = custMap[item.customer_id] || {};
+                const custName = customer.name || 'অজানা';
+                const custPhone = customer.phone || '';
+                const isLocked = item.device_status === 'locked';
+
+                const totalPaid = transMap[item.id] || 0;
+                const salePrice = Number(item.sale_price) || 0;
+                const due = salePrice - totalPaid;
+                
+                html += `
+                    <div class="p-4 border rounded-xl bg-gray-50 shadow-sm space-y-3">
+                        <div class="flex justify-between items-center">
+                            <span class="font-bold text-gray-800 text-base">${custName}</span>
+                            <span class="px-2 py-0.5 text-xs font-bold rounded ${isLocked ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}">
+                                ${isLocked ? 'Locked 🔒' : 'Active ✅'}
+                            </span>
+                        </div>
+                        <div class="text-xs text-gray-600 space-y-1">
+                            <p><b>ফোন:</b> ${custPhone} | <b>মডেল:</b> ${item.model}</p>
+                            <p><b>IMEI:</b> ${item.imei}</p>
+                            <div class="grid grid-cols-3 gap-1 bg-white p-2 rounded border mt-2 text-center">
+                                <div><span class="text-gray-500 block">মূল্য</span><b>৳${salePrice}</b></div>
+                                <div><span class="text-green-600 block">জমা</span><b>৳${totalPaid}</b></div>
+                                <div><span class="text-red-600 block">বাকি</span><b>৳${due}</b></div>
+                            </div>
+                        </div>
+                        <div class="flex space-x-2 pt-1">
+                            <button onclick="openPaymentModal(${item.id}, '${custName}', ${due})" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-1.5 text-xs font-bold rounded">
+                                টাকা জমা নিন ➕
+                            </button>
+                            <button onclick="toggleLock(${item.id}, '${item.device_status}')" class="flex-1 py-1.5 text-xs font-bold text-white rounded ${isLocked ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}">
+                                ${isLocked ? 'আনলক করুন' : 'লক করুন'}
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+
+            listContainer.innerHTML = html;
+        }
+
+        function openPaymentModal(phoneId, custName, dueAmount) {
+            document.getElementById('payPhoneId').value = phoneId;
+            document.getElementById('payPhoneInfo').innerText = `গ্রাহক: ${custName} | বাকি আছে: ৳${dueAmount}`;
+            document.getElementById('payAmount').value = '';
+            document.getElementById('paymentModal').classList.remove('hidden');
+        }
+
+        function closePaymentModal() {
+            document.getElementById('paymentModal').classList.add('hidden');
+        }
+
+        async function submitPayment() {
+            const phoneId = document.getElementById('payPhoneId').value;
+            const amount = parseFloat(document.getElementById('payAmount').value);
+
+            if(!amount || amount <= 0) {
+                alert('সঠিক টাকার পরিমাণ লিখুন!');
+                return;
+            }
+
+            const { error } = await _supabase.from('transactions').insert([{
+                phone_id: phoneId,
+                amount: amount,
+                payment_date: new Date().toISOString()
+            }]);
+
+            if(error) {
+                alert('পেমেন্ট সেভ করতে সমস্যা হয়েছে: ' + error.message);
+            } else {
+                closePaymentModal();
+                fetchDevices();
+            }
+        }
+
+        async function toggleLock(phoneId, currentStatus) {
+            const newStatus = currentStatus === 'active' ? 'locked' : 'active';
+            const { error } = await _supabase
+                .from('phones')
+                .update({ device_status: newStatus })
+                .eq('id', phoneId);
+
+            if (error) {
+                alert('স্ট্যাটাস পরিবর্তন করতে সমস্যা হয়েছে: ' + error.message);
+            } else {
+                fetchDevices();
+            }
+        }
+    </script>
+</body>
+</html>
